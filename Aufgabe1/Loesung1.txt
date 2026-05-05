@@ -1,0 +1,4 @@
+a) Byte-Reihenfolge:
+b) BITMAPINFOHEADER:
+c) Bildbreite und Bildhöhe von C_1 und C_2 + Hypothese was sie bedeuten:
+d)BITMAPINFOHEADER von C_3 mit anderen Datein vergliechen. Was fällt auf?
