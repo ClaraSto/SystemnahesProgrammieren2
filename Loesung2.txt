@@ -1,0 +1,11 @@
+a) Pixeldaten von A und B. Was sind Werte für Bildbreite und -höhe.
+    Wie werden blaue, grüne und rote Pixel abespeichert. Was fällt auf.
+    Hinweis: A.bmp hat vier Reihen blaue Pixel, B.bmp hingegen nur drei
+b) Warum werden C_1 und C_2 gleich dargestellt welche Idee steckt dahinter
+c) Wie wird C_3 im vergleich zu C_2 komprimiert nhand von
+    welchen Werten könnte der Computer dies feststellen? Sie müssen vollständig erklären, wie
+    das Bild rekonstruiert werden kann!
+    Hinweis: Vergleichen Sie den Wert des Daten-Offsets mit den anderen Dateien.nhand von
+welchen Werten könnte der Computer dies feststellen? Sie müssen vollständig erklären, wie
+das Bild rekonstruiert werden kann!
+Hinweis: Vergleichen Sie den Wert des Daten-Oﬀsets mit den anderen Dateien.
