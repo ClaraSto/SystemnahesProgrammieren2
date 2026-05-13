@@ -1,0 +1,164 @@
+Testfall 1 — Minimalgröße 3×3
+Ziel
+
+Prüfen, ob:
+
+genau ein Pixel entsteht,
+Randpixel korrekt verworfen werden.
+Eingabe
+
+3×3 BMP.
+
+Erwartung
+
+Ausgabebild:
+
+Breite = 1
+Höhe = 1
+
+Headerwerte:
+
+width = 1
+height = 1
+Testfall 2 — Einheitliche Farbe
+Ziel
+
+Prüfen, ob der Smooth-Filter korrekt arbeitet.
+
+Eingabe
+
+Komplett rotes Bild:
+
+alle Pixel (255,0,0)
+
+Filter:
+
+smooth
+Erwartung
+
+Ausgabebild ebenfalls vollständig rot.
+
+Warum?
+
+Durchschnitt von nur roten Pixeln bleibt rot.
+
+Wenn andere Farben entstehen:
+
+Kernel falsch
+Farbkanäle vertauscht
+Overflow/Clamp falsch
+Testfall 3 — Schwarzes Bild mit einem weißen Pixel
+Ziel
+
+Prüfen, ob Faltung mathematisch korrekt arbeitet.
+
+Eingabe
+
+Schwarzes Bild:
+
+alle Pixel schwarz
+genau ein weißes Pixel in der Mitte
+
+Filter:
+
+edge
+Erwartung
+
+Deutliche Kontur/Reaktion nur um dieses Pixel.
+
+Das zeigt:
+
+Nachbarpixel werden korrekt benutzt
+Kernel wird richtig angewendet
+Positionierung stimmt
+Testfall 4 — Padding-Test
+Ziel
+
+Prüfen, ob BMP-Zeilenpadding korrekt behandelt wird.
+
+Wichtig
+
+BMP braucht Padding wenn:
+
+(width * 3) % 4 != 0
+Gute Breite
+
+5 Pixel.
+
+Denn:
+
+5 * 3 = 15
+
+→ 1 Byte Padding.
+
+Erwartung
+
+Bild darf:
+
+nicht verschoben sein
+keine Farbstreifen haben
+nicht zerstört aussehen
+
+Wenn Padding falsch:
+
+Bild kippt
+Farben verrutschen
+diagonale Artefakte entstehen
+
+Das ist einer der wichtigsten Tests.
+
+Testfall 5 — Schärfefilter
+Ziel
+
+Prüfen, ob negative Kernelwerte korrekt verarbeitet werden.
+
+Eingabe
+
+Normales Bild.
+
+Filter:
+
+sharp
+Erwartung
+Kanten stärker
+Bild schärfer
+keine extremen Farbfehler
+
+Zeigt:
+
+negative Werte funktionieren
+Clamp funktioniert
+Testfall 6 — Fehlerfall: falsche Datei
+Eingabe
+
+Textdatei statt BMP.
+
+Erwartung
+Error: Not a BMP file.
+Testfall 7 — Fehlerfall: komprimierte BMP
+Erwartung
+Compressed BMP not supported.
+Testfall 8 — Fehlerfall: zu kleines Bild
+Eingabe
+
+2×2 BMP.
+
+Erwartung
+Image too small.
+Welche 4 solltest du nehmen?
+
+Die besten vier:
+
+3×3 Minimalbild
+Einheitliche Farbe
+Padding-Test
+Einzelnes weißes Pixel auf schwarzem Hintergrund
+
+Diese vier testen:
+
+Cropping
+mathematische Korrektheit
+Speicherlayout
+BMP-Format korrekt
+
+Das ist deutlich besser als nur Fehlerfälle.
