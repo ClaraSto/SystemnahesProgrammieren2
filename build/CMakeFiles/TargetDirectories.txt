@@ -1,0 +1,3 @@
+/home/lolxd/hka/semester3/betriebssysteme/Abgabe2/build/CMakeFiles/bitmap_filter.dir
+/home/lolxd/hka/semester3/betriebssysteme/Abgabe2/build/CMakeFiles/edit_cache.dir
+/home/lolxd/hka/semester3/betriebssysteme/Abgabe2/build/CMakeFiles/rebuild_cache.dir

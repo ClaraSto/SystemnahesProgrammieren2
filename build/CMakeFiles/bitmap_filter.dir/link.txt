@@ -1,0 +1,1 @@
+/usr/bin/cc -Wl,--dependency-file=CMakeFiles/bitmap_filter.dir/link.d CMakeFiles/bitmap_filter.dir/main.c.o -o bitmap_filter
