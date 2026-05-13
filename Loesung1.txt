@@ -1,4 +1,45 @@
-a) Byte-Reihenfolge:
-b) BITMAPINFOHEADER:
+a) Byte-Reihenfolge: 0x0178 = 376, also little endian
+
+b) BITMAPINFOHEADER: 
+• Header-Größe (in diesem Fall sollte hier immer die Zahl 40 stehen) (4 Bytes)
+40
+
+• Bildbreite in Pixel (4 Bytes, signed)
+10
+
+• Bildhöhe in Pixel (4 Bytes, signed)
+10
+
+• Anzahl der Farbebenen (2 Bytes)
+1
+
+• Bits pro Pixel (2 Bytes)
+24
+
+• Kompressionsmethode (4 Bytes)
+0
+
+• Bildgröße (Größe des Bildbereichs in Bytes) (4 Bytes)
+322
+
+• Horizontale Auflösung (DPI oder PPM) (4 Bytes, signed)
+7874
+
+• Vertikale Auflösung (DPI oder PPM) (4 Bytes, signed)
+7874
+
+• Anzahl der Farben in der Palette (4 Bytes)
+0
+
+• Anzahl der wichtigen Farben (4 Bytes)
+0
+
 c) Bildbreite und Bildhöhe von C_1 und C_2 + Hypothese was sie bedeuten:
-d)BITMAPINFOHEADER von C_3 mit anderen Datein vergliechen. Was fällt auf?
+Bildbreite bei beiden 12
+Bildhöhe C1: 12
+Bildhöhe C2: -12
+Vermutung: Bild ist gespiegelt
+
+
+d)BITMAPINFOHEADER von C_3 mit anderen Dateien vergleichen. Was fällt auf?
+nur 1 bit pro Pixel, niedrigere Auflösung und Bildgröße

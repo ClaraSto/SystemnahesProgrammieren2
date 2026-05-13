@@ -1,11 +1,19 @@
 a) Pixeldaten von A und B. Was sind Werte für Bildbreite und -höhe.
-    Wie werden blaue, grüne und rote Pixel abespeichert. Was fällt auf.
+    Wie werden blaue, grüne und rote Pixel abgespeichert. Was fällt auf.
     Hinweis: A.bmp hat vier Reihen blaue Pixel, B.bmp hingegen nur drei
+A: Breite und Höhe 10
+B: Breite und Höhe 9
+Die Zeilen werden von unten nach oben gespeichert.
+
 b) Warum werden C_1 und C_2 gleich dargestellt welche Idee steckt dahinter
-c) Wie wird C_3 im vergleich zu C_2 komprimiert nhand von
+C1 hat 12 als Höhe und die grünen Zeilen am unteren Rand sind am Anfang der Pixeldaten.
+C2 hat -12 als Höhe und die grünen Zeilen sind am Ende der Daten, also werden die Zeilen bei negativer Höhe von oben nach unten gespeichert.
+
+c) Wie wird C_3 im vergleich zu C_2 komprimiert anhand von
     welchen Werten könnte der Computer dies feststellen? Sie müssen vollständig erklären, wie
     das Bild rekonstruiert werden kann!
-    Hinweis: Vergleichen Sie den Wert des Daten-Offsets mit den anderen Dateien.nhand von
-welchen Werten könnte der Computer dies feststellen? Sie müssen vollständig erklären, wie
-das Bild rekonstruiert werden kann!
-Hinweis: Vergleichen Sie den Wert des Daten-Oﬀsets mit den anderen Dateien.
+    Hinweis: Vergleichen Sie den Wert des Daten-Offsets mit den anderen Dateien.
+
+Die Pixelwerte beginnen mit FFF, gefolgt von Nullen. FFF entspricht 12 Einsen, also genau die Anzahl Pixel in einer Zeile.
+Mit 0 als schwarz und 1 als grün wird dadurch dieses Bild erzeugt. Die 8 byte zwischen dem Header und den Daten legen die Farben fest,
+die ersten 4 für null, hier 00000000, also schwarz, die letzten vier für 1, hier 00FF0000, also grün. Die ersten 3 stehen für BGR, das vierte ist 0.
