@@ -10,6 +10,7 @@
 //altes alingment merken und auf 1 setzen, da header kein padding
 #pragma pack(push, 1)
 
+//Attributgröße passend und in richitger Reihenfolge -> Header werden richtig eingelesen
 typedef struct {
     uint16_t signature;
     uint32_t fileSize;
@@ -40,8 +41,7 @@ typedef struct {
 //ursprüngliches alingment zurücksetzen
 #pragma pack(pop)
 
-/* ================= FILTER ================= */
-
+//Filter
 static float smooth[3][3] = {
     {1.0f/9, 1.0f/9, 1.0f/9},
     {1.0f/9, 1.0f/9, 1.0f/9},
@@ -66,13 +66,13 @@ static float emboss[3][3] = {
     { 0, -1, -2}
 };
 
-/* ================= MAIN ================= */
 
 int main()
 {
     char filename[256];
     char filter_option[50];
 
+    //Usereingabe
     printf("Enter BMP filename:\n");
     scanf("%255s", filename);
 
@@ -81,6 +81,7 @@ int main()
 
     float (*kernel)[3] = NULL;
 
+    //Filter oder invalide Eingabe erkennen
     if (strcmp(filter_option, "smooth") == 0)
         kernel = smooth;
 
@@ -98,8 +99,7 @@ int main()
         return 1;
     }
 
-    /* ================= DATEI ÖFFNEN ================= */
-
+   //Datei öffnen und Fehler abfangen
     int fd = open(filename, O_RDONLY);
 
     if (fd == -1) {
@@ -110,8 +110,7 @@ int main()
     BitmapFileHeader fileHeader;
     BitmapInfoHeader infoHeader;
 
-    /* ================= HEADER LESEN ================= */
-
+    //header lesen 
     if (read(fd, &fileHeader, sizeof(fileHeader)) != sizeof(fileHeader)) {
         printf("Error reading file header.\n");
         close(fd);
@@ -124,32 +123,37 @@ int main()
         return 1;
     }
 
-    /* ================= VALIDIERUNG ================= */
 
+    //Validieren
+    //Signatur
     if (fileHeader.signature != 0x4D42) {
         printf("Error: Not a BMP file.\n");
         close(fd);
         return 1;
     }
 
+    //Bit per Pixel
     if (infoHeader.bitsPerPixel != 24) {
         printf("Error: Only 24-bit BMP supported.\n");
         close(fd);
         return 1;
     }
 
+    //Compression
     if (infoHeader.compression != 0) {
         printf("Error: Compressed BMP not supported.\n");
         close(fd);
         return 1;
     }
 
+    //Farbpallete
     if (infoHeader.paletteColors != 0) {
         printf("Error: BMP with color palette not supported.\n");
         close(fd);
         return 1;
     }
 
+    //Breite und Höhe midnestens 3
     if (infoHeader.width < 3 || abs(infoHeader.height) < 3) {
         printf("Error: Image too small.\n");
         close(fd);
@@ -162,24 +166,20 @@ int main()
     printf("Width: %d\n", width);
     printf("Height: %d\n", height);
 
-    /* ================= PADDING ================= */
-
+    //Formel für Padding
     int padding = (4 - (width * 3) % 4) % 4;
 
-    /* ================= SPEICHER ALLOKIEREN ================= */
-
+    //Spiecher für neue Bitmap allokieren
     Pixel** image = malloc(height * sizeof(Pixel*));
 
     for (int y = 0; y < height; y++) {
         image[y] = malloc(width * sizeof(Pixel));
     }
 
-    /* ================= ZU PIXELDATEN SPRINGEN ================= */
-
+    //Zu Pixeldaten gehen
     lseek(fd, fileHeader.dataOffset, SEEK_SET);
 
-    /* ================= PIXEL LESEN ================= */
-
+    //Pixeldaten lesen
     for (int y = 0; y < height; y++) {
 
         read(fd, image[y], width * sizeof(Pixel));
@@ -189,8 +189,7 @@ int main()
 
     close(fd);
 
-    /* ================= AUSGABEBILD ================= */
-
+    // Speicher für Ausgabebild reservieren    
     int newWidth = width - 2;
     int newHeight = height - 2;
 
@@ -200,8 +199,7 @@ int main()
         output[y] = malloc(newWidth * sizeof(Pixel));
     }
 
-    /* ================= FILTER ANWENDEN ================= */
-
+    //Filter anwenden
     for (int y = 0; y < newHeight; y++) {
 
         for (int x = 0; x < newWidth; x++) {
@@ -224,7 +222,7 @@ int main()
                 }
             }
 
-            /* clamp */
+            //clamp 
 
             if (red < 0) red = 0;
             if (red > 255) red = 255;
@@ -241,8 +239,7 @@ int main()
         }
     }
 
-    /* ================= NEUE HEADER ================= */
-
+    //neuen Header schreiben
     int newPadding = (4 - (newWidth * 3) % 4) % 4;
 
     infoHeader.width = newWidth;
@@ -260,8 +257,7 @@ int main()
         + sizeof(BitmapInfoHeader)
         + infoHeader.imageSize;
 
-    /* ================= AUSGABEDATEI ================= */
-
+    //Ausgabedatei erstellen
     int out = open(
         "output.bmp",
         O_CREAT | O_WRONLY | O_TRUNC,
@@ -273,13 +269,11 @@ int main()
         return 1;
     }
 
-    /* ================= HEADER SCHREIBEN ================= */
-
+    //Header schreiben
     write(out, &fileHeader, sizeof(fileHeader));
     write(out, &infoHeader, sizeof(infoHeader));
 
-    /* ================= PIXEL SCHREIBEN ================= */
-
+    //Pixel schreiben
     char pad[3] = {0, 0, 0};
 
     for (int y = 0; y < newHeight; y++) {
@@ -293,8 +287,7 @@ int main()
 
     close(out);
 
-    /* ================= SPEICHER FREIGEBEN ================= */
-
+    //Speicher freigeben
     for (int y = 0; y < height; y++) {
         free(image[y]);
     }
