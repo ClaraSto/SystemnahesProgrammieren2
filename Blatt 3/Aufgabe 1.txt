@@ -1,0 +1,21 @@
+a) Codieren Sie HEEEEELLLLOOOOOOO, so wie es im Text oben beschrieben wurde. Kodieren Sie
+dann ADADADADADAD. Was fällt Ihnen auf?
+
+HEEEEELLLLOOOOOOO = 1H5E4L7O
+ADADADADADAD = 1A1D1A1D1A1D1A1D1A1D1A1D
+
+Die zweite Codierung ist länger als die ursprüngliche Nachricht, da jeweils ein Zeichen durch zwei ersetzt wird. 
+Würde man nicht einzelne Zeichen, sondern auch Zeichenfolgen betrachten, käme man auf 6AD, was deutlich kürzer wäre.
+
+
+b) Stellen Sie sich vor, Sie müssten Segmentierungsmasken in einem RLE-Format speichern
+und die zu segmentierenden Objekte sind Personen. Wo würden Sie im Bild anfangen (z. B.
+rechts oben) und würden Sie die Pixel in vertikaler oder horizontaler Richtung durchlaufen?
+Wenn Sie nun zusätzlich Masken von Autos kodieren müssten, würden Sie nun ihr Verfahren
+ändern/erweitern? Argumentieren Sie.
+
+Da Personen in Bildern meistens aufrecht stehen, wäre es sinnvoller, die Pixel vertikal zu durchlaufen,
+da so die längsten zusammenhängenden Einserketten entstehen. Autos dagegen sind länger als hoch, deshalb
+sollten diese horizontal durchlaufen werden.
+
+Wo anfangen?

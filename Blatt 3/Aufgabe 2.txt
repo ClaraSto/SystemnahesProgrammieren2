@@ -1,0 +1,36 @@
+a) Gehen Sie davon aus, dass Sie die letzten vier Bits auf 0 setzen und die ersten vier Bits
+unverändert lassen wollen. Wie würden Sie dies mit einer bitweisen Operation tun?
+
+& 00001111
+
+
+b) Wenn Sie eine 8-Bit-Zahl haben und möchten die ersten 4 Bits mit den letzten 4 Bits ver-
+tauschen (z. B. wird aus 01101010 nun 10100110). Wie können Sie dies mit den genannten
+bitweisen Operationen erreichen?
+
+11110000 & 01101010 -> 01100000     letzte 4
+01100000 >> 4 -> 0110
+
+01101010 & 00001111 -> 1010         erste 4
+1010 << 4 -> 10100000
+
+
+10100000 & 0110 -> 10100110
+
+
+
+
+
+c) Angenommen, Sie haben eine 8-Bit-Zahl 11010100. Sie möchten das 4. und 5. Bit aus dieser
+Zahl extrahieren (von rechts gezählt, beginnend mit 1). Wie können Sie dies mit bitweisen
+Operationen erreichen?
+
+11010100 >> 3 -> 11010
+11010 & 00011 -> 10
+
+
+d) Nehmen wir eine 8-Bit-Zahl 10011011. Sie möchten nur das 3. Bit (von rechts, beginnend mit
+1) auf 1 setzen. Mit welchen der genannten bitweisen Operationen können Sie dies erreichen
+und wie?
+
+10011011 | 00000100 -> 10011111
