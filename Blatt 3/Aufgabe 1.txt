@@ -19,3 +19,4 @@ da so die längsten zusammenhängenden Einserketten entstehen. Autos dagegen sin
 sollten diese horizontal durchlaufen werden.
 
 Wo anfangen?
+Es ist egal wo man anfängt, da die Leserichtung (vertikal/horizontal) entscheident ist um möglichst lange ketten zu bilden.
