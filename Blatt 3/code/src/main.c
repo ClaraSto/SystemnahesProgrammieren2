@@ -12,21 +12,16 @@ bool use_optimized = false;
 
 // Forward declarations
 off_t get_file_size(int fd);
-char *get_compressed_file_path(const char *filePath);
+char *get_compressed_file_path(const char *filePath, bool optimized);
 char *get_decompressed_file_path(const char *filePath);
+bool is_optimized_file(const char *filePath);
 
 // Type definitions
 typedef void (*FirstOperation)(RLE *rle, const char *data, size_t size);
 typedef char *(*SecondOperation)(RLE *rle, size_t *size);
-typedef char *(*FilePathFunction)(const char *);
 
 // The operation enum
-typedef enum {
-  COMPRESS,
-  DECOMPRESS,
-  OPERATION_COUNT // always keep this as the last element to get the count of
-                  // operations
-} Operation;
+typedef enum { COMPRESS, DECOMPRESS, OPERATION_COUNT } Operation;
 
 // These operations are used to fill up the RLE data structure
 FirstOperation PrepareOutputOperation[OPERATION_COUNT] = {encode_rle,
@@ -36,29 +31,43 @@ FirstOperation PrepareOutputOperation[OPERATION_COUNT] = {encode_rle,
 SecondOperation FinalizeOutputOperation[OPERATION_COUNT] = {serialize_rle,
                                                             decode_rle};
 
-// These operations are used to create the final output data
-FilePathFunction OutputFilePath[OPERATION_COUNT] = {get_compressed_file_path,
-                                                    get_decompressed_file_path};
-
 int main(int argc, char *argv[]) {
 
   printf("Usage: %s <filepath> [operation] [--opt|-m]\n", argv[0]);
   printf("operation: '-d' for decompress, '-c' for compression (default)\n");
   printf("optional: '--opt' or '-m' to use optimized serialization\n");
+  printf("For decompression: use --opt or -m to read optimized format\n");
 
-  // Standard: Kompression, außer explizit -d angegeben
   Operation op = COMPRESS;
+  bool opt_flag = false;
 
-  // Prüfe optionale Argumente: -d für Decompress, -m oder --opt für optimiert
+  // Prüfe optionale Argumente
   for (int i = 2; i < argc; ++i) {
     if (strcmp(argv[i], "-d") == 0) {
       op = DECOMPRESS;
     } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--opt") == 0) {
-      use_optimized = true;
+      opt_flag = true;
     }
   }
 
+  if (argc < 2) {
+    printf("Error: No file specified\n");
+    return 1;
+  }
+
   char *path = argv[1];
+
+  // Für Dekomprimierung: automatisch erkennen ob optimiert
+  if (op == DECOMPRESS) {
+    if (is_optimized_file(path)) {
+      opt_flag = true;
+      printf("Detected optimized file format\n");
+    }
+  }
+
+  // Setze globales Flag für Serialisierung/Deserialisierung
+  use_optimized = opt_flag;
+
   int fd = open(path, O_RDONLY);
   if (fd == -1) {
     printf("Error: could not open file %s\n", path);
@@ -76,10 +85,11 @@ int main(int argc, char *argv[]) {
   }
 
   char *buffer = malloc(size * sizeof(char));
-  size_t bytes_to_read = size;
+  size_t bytes_to_read = (size_t)size;
   ssize_t bytes_read;
-  if ((bytes_read = read(fd, buffer, size * sizeof(char))) != bytes_to_read) {
-    printf("Error: read file %s incomplete. Expected %ld, got %ld. \n", path,
+  bytes_read = read(fd, buffer, bytes_to_read);
+  if (bytes_read != (ssize_t)bytes_to_read) {
+    printf("Error: read file %s incomplete. Expected %zu, got %zd. \n", path,
            bytes_to_read, bytes_read);
     if (bytes_read == -1) {
       printf("Error number: %d\n", errno);
@@ -91,13 +101,19 @@ int main(int argc, char *argv[]) {
 
   RLE *rle = create_rle();
   PrepareOutputOperation[op](rle, buffer, bytes_read);
-  ;
   free(buffer);
 
   printf("RLE counts:\n");
   print_rle(rle, 1);
 
-  char *outPath = OutputFilePath[op](path);
+  // Generiere Ausgabedateinamen
+  char *outPath;
+  if (op == COMPRESS) {
+    outPath = get_compressed_file_path(path, opt_flag);
+  } else {
+    outPath = get_decompressed_file_path(path);
+  }
+
   fd = open(outPath, O_CREAT | O_WRONLY | O_TRUNC, 0644);
   if (fd == -1) {
     printf("Error: could not open output file %s\n", outPath);
@@ -108,10 +124,17 @@ int main(int argc, char *argv[]) {
 
   size_t bytes_to_write = 0;
   char *data = FinalizeOutputOperation[op](rle, &bytes_to_write);
+
+  printf("Serialized data (%zu bytes): ", bytes_to_write);
+  for (size_t i = 0; i < bytes_to_write; i++) {
+    printf("%02x ", (unsigned char)data[i]);
+  }
+  printf("\n");
+
   ssize_t bytes_written;
-  if ((bytes_written = write(fd, data, bytes_to_write)) <
-      ((ssize_t)bytes_to_write)) {
-    printf("Error: write to file %s failed\n", path);
+  bytes_written = write(fd, data, bytes_to_write);
+  if (bytes_written < (ssize_t)bytes_to_write) {
+    printf("Error: write to file %s failed\n", outPath);
     if (bytes_written == -1) {
       printf("Error number: %d\n", errno);
       perror("Error message");
@@ -122,7 +145,9 @@ int main(int argc, char *argv[]) {
   free(data);
   delete_rle(rle);
 
-  printf("Done.\n");
+  printf("Done. Output written to: %s\n", outPath);
+  printf("Mode: %s\n", opt_flag ? "OPTIMIZED" : "NORMAL");
+  free(outPath);
 
   return 0;
 }
@@ -132,24 +157,49 @@ off_t get_file_size(int fd) {
   return (fstat(fd, &buf) < 0) ? -1 : buf.st_size;
 }
 
-char *get_compressed_file_path(const char *filePath) {
-  char *dot = strrchr(filePath, '.'); // find last '.'
-  size_t len = dot ? (size_t)(dot - filePath)
-                   : strlen(filePath);     // if no '.', use whole string
-  char *newPath = (char *)malloc(len + 5); // 5 for ".mrl" and '\0'
-  strncpy(newPath, filePath, len);         // copy the part before '.'
-  strcpy(newPath + len, ".mrl");           // append ".mrl"
+char *get_compressed_file_path(const char *filePath, bool optimized) {
+  const char *dot = strrchr(filePath, '.');
+  size_t len = dot ? (size_t)(dot - filePath) : strlen(filePath);
+  char *newPath;
+
+  if (optimized) {
+    newPath = (char *)malloc(len + 9); // + "_opt.mrl" + '\0'
+    strncpy(newPath, filePath, len);
+    newPath[len] = '\0';
+    strcat(newPath, "_opt.mrl");
+  } else {
+    newPath = (char *)malloc(len + 5); // + ".mrl" + '\0'
+    strncpy(newPath, filePath, len);
+    newPath[len] = '\0';
+    strcat(newPath, ".mrl");
+  }
   return newPath;
 }
 
 char *get_decompressed_file_path(const char *filePath) {
-  char *dot = strrchr(filePath, '.');    // find last '.'
-  if (dot && strcmp(dot, ".mrl") == 0) { // if ".mrl" exists
-    size_t len = dot - filePath; // get the length of the part before '.'
-    char *newPath = (char *)malloc(len + 1); // 1 for '\0'
-    strncpy(newPath, filePath, len);         // copy the part before '.'
-    newPath[len] = '\0';                     // append '\0'
-    return newPath;
+  const char *dot = strrchr(filePath, '.');
+  if (dot) {
+    // Prüfe auf _opt.mrl
+    const char *opt = strstr(filePath, "_opt.mrl");
+    if (opt &&
+        (opt == filePath + (size_t)(strstr(filePath, "_opt.mrl") - filePath))) {
+      size_t len = opt - filePath;
+      char *newPath = (char *)malloc(len + 1);
+      strncpy(newPath, filePath, len);
+      newPath[len] = '\0';
+      return newPath;
+    } else if (strcmp(dot, ".mrl") == 0) {
+      // Normales .mrl
+      size_t len = dot - filePath;
+      char *newPath = (char *)malloc(len + 1);
+      strncpy(newPath, filePath, len);
+      newPath[len] = '\0';
+      return newPath;
+    }
   }
-  return strdup(filePath); // if no ".mrl", return a copy of original filePath
+  return strdup(filePath);
+}
+
+bool is_optimized_file(const char *filePath) {
+  return strstr(filePath, "_opt.mrl") != NULL;
 }
