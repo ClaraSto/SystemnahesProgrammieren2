@@ -32,11 +32,13 @@ SecondOperation FinalizeOutputOperation[OPERATION_COUNT] = {serialize_rle,
                                                             decode_rle};
 
 int main(int argc, char *argv[]) {
-
-  printf("Usage: %s <filepath> [operation] [--opt|-m]\n", argv[0]);
-  printf("operation: '-d' for decompress, '-c' for compression (default)\n");
-  printf("optional: '--opt' or '-m' to use optimized serialization\n");
-  printf("For decompression: use --opt or -m to read optimized format\n");
+  if (argc < 2) {
+    printf("Usage: %s <filepath> [operation] [--opt|-m]\n", argv[0]);
+    printf("operation: '-d' for decompress, '-c' for compression (default)\n");
+    printf("optional: '--opt' or '-m' to use optimized serialization\n");
+    printf("For decompression: use --opt or -m to read optimized format\n");
+    return 1;
+  }
 
   Operation op = COMPRESS;
   bool opt_flag = false;
@@ -48,11 +50,6 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--opt") == 0) {
       opt_flag = true;
     }
-  }
-
-  if (argc < 2) {
-    printf("Error: No file specified\n");
-    return 1;
   }
 
   char *path = argv[1];
@@ -81,10 +78,16 @@ int main(int argc, char *argv[]) {
     printf("Error: could not get file size\n");
     printf("Error number: %d\n", errno);
     perror("Error message");
+    close(fd);
     return 1;
   }
 
   char *buffer = malloc(size * sizeof(char));
+  if (!buffer && size > 0) {
+    close(fd);
+    return 1;
+  }
+
   size_t bytes_to_read = (size_t)size;
   ssize_t bytes_read;
   bytes_read = read(fd, buffer, bytes_to_read);
@@ -95,6 +98,8 @@ int main(int argc, char *argv[]) {
       printf("Error number: %d\n", errno);
       perror("Error message");
     }
+    free(buffer);
+    close(fd);
     return 1;
   }
   close(fd);
@@ -119,6 +124,8 @@ int main(int argc, char *argv[]) {
     printf("Error: could not open output file %s\n", outPath);
     printf("Error number: %d\n", errno);
     perror("Error message");
+    free(outPath);
+    delete_rle(rle);
     return 1;
   }
 
@@ -139,6 +146,10 @@ int main(int argc, char *argv[]) {
       printf("Error number: %d\n", errno);
       perror("Error message");
     }
+    close(fd);
+    free(data);
+    free(outPath);
+    delete_rle(rle);
     return 1;
   }
   close(fd);
@@ -164,11 +175,15 @@ char *get_compressed_file_path(const char *filePath, bool optimized) {
 
   if (optimized) {
     newPath = (char *)malloc(len + 9); // + "_opt.mrl" + '\0'
+    if (!newPath)
+      return NULL;
     strncpy(newPath, filePath, len);
     newPath[len] = '\0';
     strcat(newPath, "_opt.mrl");
   } else {
     newPath = (char *)malloc(len + 5); // + ".mrl" + '\0'
+    if (!newPath)
+      return NULL;
     strncpy(newPath, filePath, len);
     newPath[len] = '\0';
     strcat(newPath, ".mrl");
@@ -177,29 +192,31 @@ char *get_compressed_file_path(const char *filePath, bool optimized) {
 }
 
 char *get_decompressed_file_path(const char *filePath) {
-  const char *dot = strrchr(filePath, '.');
-  if (dot) {
-    // Prüfe auf _opt.mrl
-    const char *opt = strstr(filePath, "_opt.mrl");
-    if (opt &&
-        (opt == filePath + (size_t)(strstr(filePath, "_opt.mrl") - filePath))) {
-      size_t len = opt - filePath;
-      char *newPath = (char *)malloc(len + 1);
-      strncpy(newPath, filePath, len);
-      newPath[len] = '\0';
-      return newPath;
-    } else if (strcmp(dot, ".mrl") == 0) {
-      // Normales .mrl
-      size_t len = dot - filePath;
-      char *newPath = (char *)malloc(len + 1);
-      strncpy(newPath, filePath, len);
-      newPath[len] = '\0';
-      return newPath;
-    }
+  size_t len = strlen(filePath);
+
+  if (len > 8 && strcmp(filePath + len - 8, "_opt.mrl") == 0) {
+    size_t new_len = len - 8;
+    char *newPath = (char *)malloc(new_len + 1);
+    if (!newPath)
+      return NULL;
+    memcpy(newPath, filePath, new_len);
+    newPath[new_len] = '\0';
+    return newPath;
+  } else if (len > 4 && strcmp(filePath + len - 4, ".mrl") == 0) {
+    size_t new_len = len - 4;
+    char *newPath = (char *)malloc(new_len + 1);
+    if (!newPath)
+      return NULL;
+    memcpy(newPath, filePath, new_len);
+    newPath[new_len] = '\0';
+    return newPath;
   }
   return strdup(filePath);
 }
 
 bool is_optimized_file(const char *filePath) {
-  return strstr(filePath, "_opt.mrl") != NULL;
+  size_t len = strlen(filePath);
+  if (len < 8)
+    return false;
+  return strcmp(filePath + len - 8, "_opt.mrl") == 0;
 }

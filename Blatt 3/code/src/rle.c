@@ -20,6 +20,8 @@ struct RLE {
 
 void append_to_rle(RLE *rle, uint64_t count) {
   RLENode *node = malloc(sizeof(RLENode));
+  if (!node)
+    return;
   node->count = count;
   node->next = NULL;
 
@@ -35,6 +37,8 @@ void append_to_rle(RLE *rle, uint64_t count) {
 
 RLE *create_rle() {
   RLE *rle = malloc(sizeof(RLE));
+  if (!rle)
+    return NULL;
   rle->head = NULL;
   rle->tail = NULL;
   rle->size = 0;
@@ -44,6 +48,8 @@ RLE *create_rle() {
 }
 
 void delete_rle(RLE *rle) {
+  if (!rle)
+    return;
   RLENode *node = rle->head;
   while (node) {
     RLENode *next = node->next;
@@ -64,11 +70,13 @@ static uint64_t get_rle_total_count(RLE *rle) {
 }
 
 void encode_rle(RLE *rle, const char *data, size_t size) {
-  uint8_t counting_bit = (rle->size & 1) ^ 1;
+  if (!rle || !data)
+    return;
+  uint8_t counting_bit = 0;
 
   for (size_t i = 0; i < size; i++) {
     for (int8_t j = 7; j >= 0; j--) {
-      uint8_t current_bit = (data[i] >> j) & 1;
+      uint8_t current_bit = ((uint8_t)data[i] >> j) & 1;
       if (current_bit == counting_bit) {
         rle->tail->count++;
       } else {
@@ -79,17 +87,15 @@ void encode_rle(RLE *rle, const char *data, size_t size) {
   }
 }
 
-/*
-  Robust decode: iterate bit positions explicitly.
-  This avoids subtle index/bit_index off-by-one errors and is easy to reason
-  about.
-*/
 char *decode_rle(RLE *rle, size_t *size) {
+  if (!rle || !size)
+    return NULL;
+
   uint64_t total_bits = get_rle_total_count(rle);
   *size = (total_bits + 7) >> 3;
 
   if (*size == 0) {
-    return calloc(1, 1); // return at least a non-NULL pointer for zero-length
+    return calloc(1, 1);
   }
 
   char *output = calloc(*size, sizeof(char));
@@ -97,8 +103,8 @@ char *decode_rle(RLE *rle, size_t *size) {
     return NULL;
   }
 
-  uint64_t bit_pos = 0;  // 0 .. total_bits-1
-  uint8_t bit_value = 0; // start with zeros (matches create_rle behavior)
+  uint64_t bit_pos = 0;
+  uint8_t bit_value = 0;
   RLENode *node = rle->head;
 
   while (node) {
@@ -106,10 +112,11 @@ char *decode_rle(RLE *rle, size_t *size) {
     for (uint64_t i = 0; i < cnt; ++i) {
       if (bit_pos >= total_bits)
         break;
+
       if (bit_value) {
-        uint64_t byte_index = bit_pos >> 3;      // bit_pos / 8
-        uint8_t bit_index = 7 - (bit_pos & 0x7); // MSB first
-        output[byte_index] |= (1u << bit_index);
+        uint64_t byte_index = bit_pos >> 3;
+        uint8_t bit_index = 7 - (bit_pos & 0x7);
+        output[byte_index] |= (char)(1u << bit_index);
       }
       bit_pos++;
     }
@@ -120,224 +127,184 @@ char *decode_rle(RLE *rle, size_t *size) {
   return output;
 }
 
-void print_rle(RLE *rle, uint8_t counts_per_line) {
-  RLENode *node = rle->head;
-  printf("{\n");
-  int counter = 0;
-  while (node) {
-    printf("  %lu", node->count);
-    if (node->next)
-      printf(", ");
-    if (counts_per_line > 0 && ++counter >= counts_per_line) {
-      printf("\n");
-      counter = 0;
-    }
-    node = node->next;
-  }
-  printf(" }\n");
-}
-
-static void push_nibble(uint8_t **nibbles, size_t *ncount, uint8_t nib) {
-  uint8_t *tmp = realloc(*nibbles, (*ncount + 1) * sizeof(uint8_t));
-  if (!tmp) {
-    free(*nibbles);
-    *nibbles = NULL;
-    *ncount = 0;
-    return;
-  }
-  *nibbles = tmp;
-  (*nibbles)[(*ncount)++] = nib & 0xF;
-}
-
-static void emit_count_as_nibbles(uint8_t **nibbles, size_t *ncount,
-                                  uint8_t type, uint64_t count,
-                                  bool optimized) {
-  if (!optimized) {
-    if (count <= 3) {
-      uint8_t nib =
-          (uint8_t)((type & 1) << 3) | (0 << 2) | (uint8_t)(count & 0x3);
-      push_nibble(nibbles, ncount, nib);
-    } else {
-      uint8_t low2 = count & 0x3;
-      uint8_t high4 = (count >> 2) & 0xF;
-      uint8_t nib1 = (uint8_t)((type & 1) << 3) | (1 << 2) | low2;
-      uint8_t nib2 = high4 & 0xF;
-      push_nibble(nibbles, ncount, nib1);
-      push_nibble(nibbles, ncount, nib2);
-    }
+static void write_nibble(char **buf, size_t *nibble_cnt, uint8_t nibble_val) {
+  size_t byte_idx = *nibble_cnt / 2;
+  if (*nibble_cnt % 2 == 0) {
+    (*buf)[byte_idx] = (char)((nibble_val & 0x0F) << 4);
   } else {
-    // Optimized token emission according to the rules:
-    // 00xx -> value = low2
-    // 01xx + extra -> value = (extra<<2)|low2 + 4
-    // 10xx -> value = low2 + 1
-    // 11xx + extra -> value = (extra<<2)|low2 + 5
-    if (count <= 3) {
-      // emit 00xx or 10xx depending on type: for type==0 use 00xx, for type==1
-      // use 10xx
-      uint8_t nib =
-          (uint8_t)((type & 1) << 3) | (0 << 2) | (uint8_t)(count & 0x3);
-      push_nibble(nibbles, ncount, nib);
-    } else {
-      // emit ext=1 token (6-bit) and rely on decode to add +4/+5
-      uint8_t low2 = count & 0x3;
-      uint8_t high4 = (count >> 2) & 0xF;
-      uint8_t nib1 = (uint8_t)((type & 1) << 3) | (1 << 2) | low2;
-      uint8_t nib2 = high4 & 0xF;
-      push_nibble(nibbles, ncount, nib1);
-      push_nibble(nibbles, ncount, nib2);
-    }
+    (*buf)[byte_idx] |= (char)(nibble_val & 0x0F);
+  }
+  (*nibble_cnt)++;
+}
+
+static uint8_t read_nibble(const char *buf, size_t nibble_idx) {
+  size_t byte_idx = nibble_idx / 2;
+  if (nibble_idx % 2 == 0) {
+    return (uint8_t)((buf[byte_idx] >> 4) & 0x0F);
+  } else {
+    return (uint8_t)(buf[byte_idx] & 0x0F);
   }
 }
 
-static char *pack_nibbles(uint8_t *nibbles, size_t ncount, size_t *size) {
-  size_t bytes = (ncount + 1) / 2;
-  char *out = malloc(bytes);
-  if (!out) {
-    free(nibbles);
-    *size = 0;
-    return NULL;
-  }
-  memset(out, 0, bytes);
-  for (size_t i = 0; i < ncount; i += 2) {
-    uint8_t high = nibbles[i] & 0xF;
-    uint8_t low = (i + 1 < ncount) ? (nibbles[i + 1] & 0xF) : 0;
-    out[i / 2] = (char)((high << 4) | low);
-  }
-  *size = bytes;
-  free(nibbles);
-  return out;
-}
-
-// ===== NORMALE SERIALISIERUNG =====
-static char *serialize_rle_normal(RLE *rle, size_t *size) {
-  uint8_t *nibbles = NULL;
-  size_t ncount = 0;
-  uint8_t type = 0;
-
-  RLENode *node = rle->head;
-  while (node) {
-    uint64_t remaining = node->count;
-    while (remaining > 0) {
-      uint64_t chunk = remaining <= 63 ? remaining : 63;
-      emit_count_as_nibbles(&nibbles, &ncount, type, chunk, false);
-      remaining -= chunk;
-    }
-    type ^= 1;
-    node = node->next;
-  }
-
-  return pack_nibbles(nibbles, ncount, size);
-}
-
-// ===== OPTIMIERTE SERIALISIERUNG =====
-static char *serialize_rle_optimized(RLE *rle, size_t *size) {
-  uint8_t *nibbles = NULL;
-  size_t ncount = 0;
-  uint8_t type = 0;
-
-  RLENode *node = rle->head;
-  while (node) {
-    uint64_t remaining = node->count;
-    while (remaining > 0) {
-      uint64_t chunk = remaining <= 63 ? remaining : 63;
-      emit_count_as_nibbles(&nibbles, &ncount, type, chunk, true);
-      remaining -= chunk;
-    }
-    type ^= 1;
-    node = node->next;
-  }
-
-  return pack_nibbles(nibbles, ncount, size);
-}
-
-// ===== WRAPPER =====
 char *serialize_rle(RLE *rle, size_t *size) {
-  if (use_optimized) {
-    return serialize_rle_optimized(rle, size);
-  } else {
-    return serialize_rle_normal(rle, size);
-  }
-}
+  if (!rle || !size)
+    return NULL;
 
-// ===== DESERIALISIERUNG =====
-void deserialize_rle(RLE *rle, const char *data, size_t size) {
-  if (size == 0)
-    return;
+  size_t max_bytes = (rle->size * 2) + 1;
+  char *buf = calloc(max_bytes, sizeof(char));
+  if (!buf)
+    return NULL;
 
-  size_t ncount = size * 2;
-  uint8_t *nibbles = malloc(ncount);
-  if (!nibbles)
-    return;
-
-  for (size_t i = 0; i < size; ++i) {
-    uint8_t b = (uint8_t)data[i];
-    nibbles[i * 2] = (b >> 4) & 0xF;
-    nibbles[i * 2 + 1] = b & 0xF;
-  }
-
-  // Clear the existing RLE structure
+  size_t nibble_cnt = 0;
   RLENode *node = rle->head;
+  uint8_t bit_type = 0;
+
   while (node) {
-    RLENode *next = node->next;
-    free(node);
-    node = next;
-  }
-  rle->head = NULL;
-  rle->tail = NULL;
-  rle->size = 0;
+    uint64_t count = node->count;
 
-  size_t idx = 0;
-  uint8_t current_type = 0; // start with zeros
-
-  while (idx < ncount) {
-    // If last nibble is padding zero, break
-    if (idx == ncount - 1 && nibbles[idx] == 0) {
-      break;
+    if (count == 0) {
+      bit_type ^= 1;
+      node = node->next;
+      continue;
     }
 
-    uint8_t nib = nibbles[idx++];
-    uint8_t ext = (nib >> 2) & 1;
-    uint64_t count = nib & 0x3;
+    while (count > 0) {
+      uint64_t chunk = 0;
+      uint8_t ext = 0;
+      uint8_t val_high = 0;
+      uint8_t val_low = 0;
+
+      if (!use_optimized) {
+        if (count <= 3) {
+          chunk = count;
+          ext = 0;
+          val_high = (uint8_t)chunk;
+        } else {
+          chunk = (count > 63) ? 63 : count;
+          ext = 1;
+          val_high = (uint8_t)(chunk >> 4);
+          val_low = (uint8_t)(chunk & 0x0F);
+        }
+      } else {
+        if (bit_type == 0) {
+          if (count <= 3) {
+            chunk = count;
+            ext = 0;
+            val_high = (uint8_t)chunk;
+          } else {
+            chunk = (count > 67) ? 67 : count;
+            ext = 1;
+            uint8_t actual_val = (uint8_t)(chunk - 4);
+            val_high = (uint8_t)(actual_val >> 4);
+            val_low = (uint8_t)(actual_val & 0x0F);
+          }
+        } else {
+          if (count <= 4) {
+            chunk = count;
+            ext = 0;
+            val_high = (uint8_t)(chunk - 1);
+          } else {
+            chunk = (count > 68) ? 68 : count;
+            ext = 1;
+            uint8_t actual_val = (uint8_t)(chunk - 5);
+            val_high = (uint8_t)(actual_val >> 4);
+            val_low = (uint8_t)(actual_val & 0x0F);
+          }
+        }
+      }
+
+      uint8_t first_nibble =
+          (uint8_t)((bit_type << 3) | (ext << 2) | (val_high & 0x03));
+      write_nibble(&buf, &nibble_cnt, first_nibble);
+
+      if (ext) {
+        write_nibble(&buf, &nibble_cnt, val_low);
+      }
+
+      count -= chunk;
+    }
+
+    bit_type ^= 1;
+    node = node->next;
+  }
+
+  // Korrigiertes Padding: Setzt ungenutzte Bits am Byte-Ende auf 1 (0x0F)
+  if (nibble_cnt > 0 && (nibble_cnt % 2 != 0)) {
+    size_t last_byte_idx = (nibble_cnt - 1) / 2;
+    buf[last_byte_idx] |= 0x0F;
+  }
+
+  *size = (nibble_cnt + 1) / 2;
+  return buf;
+}
+
+void deserialize_rle(RLE *rle, const char *data, size_t size) {
+  if (!rle || !data || size == 0)
+    return;
+
+  size_t total_nibbles = size * 2;
+  size_t nibble_idx = 0;
+  uint8_t current_expected_type = 0;
+
+  while (nibble_idx < total_nibbles) {
+    // Erkennt Padding am Pufferende (0x00 oder 0x0F im ungenutzten hinteren
+    // Nibble)
+    if (nibble_idx == total_nibbles - 1) {
+      uint8_t last_nibble = read_nibble(data, nibble_idx);
+      if (last_nibble == 0 || last_nibble == 0x0F) {
+        break;
+      }
+    }
+
+    uint8_t first_nibble = read_nibble(data, nibble_idx++);
+    uint8_t bit_type = (first_nibble >> 3) & 1;
+    uint8_t ext = (first_nibble >> 2) & 1;
+    uint8_t val_high = first_nibble & 0x03;
+
+    uint64_t count = 0;
 
     if (ext) {
-      if (idx >= ncount)
+      if (nibble_idx >= total_nibbles)
         break;
-      uint8_t extra = nibbles[idx++];
-      uint64_t full = ((uint64_t)extra << 2) | count;
+      uint8_t second_nibble = read_nibble(data, nibble_idx++);
+      uint8_t combined_val = (uint8_t)((val_high << 4) | second_nibble);
+
       if (!use_optimized) {
-        // normal: full is the 6-bit count
-        count = full;
+        count = combined_val;
       } else {
-        // optimized: token semantics:
-        // token_type bit is the top bit of nibble
-        uint8_t token_type = (nib >> 3) & 1;
-        if (token_type == 0) {
-          // 01xx extra -> +4
-          count = full + 4;
-        } else {
-          // 11xx extra -> +5
-          count = full + 5;
-        }
+        count = combined_val + (bit_type == 0 ? 4 : 5);
       }
     } else {
-      // ext == 0: 2-bit value
       if (!use_optimized) {
-        // normal: count is low2 (already)
+        count = val_high;
       } else {
-        uint8_t token_type = (nib >> 3) & 1;
-        if (token_type == 0) {
-          // 00xx -> value = low2
-          count = count;
-        } else {
-          // 10xx -> value = low2 + 1
-          count = count + 1;
-        }
+        count = val_high + (bit_type == 0 ? 0 : 1);
       }
     }
 
-    append_to_rle(rle, count);
-    current_type ^= 1;
-  }
+    if (count == 0)
+      continue;
 
-  free(nibbles);
+    while (current_expected_type != bit_type) {
+      append_to_rle(rle, 0);
+      current_expected_type ^= 1;
+    }
+
+    rle->tail->count += count;
+  }
+}
+
+void print_rle(RLE *rle, uint8_t counts_per_line) {
+  if (!rle)
+    return;
+  RLENode *node = rle->head;
+  int index = 0;
+  while (node) {
+    if (counts_per_line) {
+      printf("  Node %d (%s-Bits): %lu\n", index, (index % 2 == 0) ? "0" : "1",
+             (unsigned long)node->count);
+    }
+    node = node->next;
+    index++;
+  }
 }
